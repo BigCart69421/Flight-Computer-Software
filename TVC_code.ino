@@ -1,102 +1,63 @@
-#include<Servo.h>
-#include<SD.h>
-#include<SPI.h>
-#include<Adafruit_BMP085.h>
-#include<Adafruit_MPU6050.h>
-#include<Adafruit_Sensor.h>
-#include<Wire.h>
-#include<Servo.h>
+#include<"Adafruit_MPU6050.h">
+#include<"Adafruit_BME280.h">
+#include<"Servo.h">
+#include<"Wire.h">
+#include<"Adafruit_Sensor.h">
 
-#define SD_CS 9
-#define LED_R 21
-#define LED_G 19
-#define LED_B 20
-#define BUZZER 18
-#define PY1 10
-#define PY2 11
-#define yPin 1
-#define xPin 2
+Adafruit_BME280 baro;
+Adafruit_MPU6050 mpu;
 
-Servo xServo;
+unsigned long lastMicros = 0;
+
+float output = 0;
+float x = 0;
+float y = 0;
+float dt = 0;
+
+float xTune;
+float yTune;
+
+int yServoPin = 17;
+int xServoPin = 16;
+
 Servo yServo;
+Servo xServo;
 
-Adafruit_MPU6050 imu;
-Adafruit_BMP085 baro;
-
-File flightData;
-
-float galt;
-float zalt;
-float nalt;
-float x;
-float y;
-
-
-void startupTone() {
-  tone(BUZZER, 1000, 120);
-  delay(140);
-  tone(BUZZER, 1500, 120);
-  delay(140);
-  tone(BUZZER, 2000, 120);
-  delay(140);
-  tone(BUZZER, 2500, 120);
-  delay(140);
-  tone(BUZZER, 2000, 100);
-  delay(120);
-  tone(BUZZER, 1500, 100);
-  delay(120);
-  tone(BUZZER, 1000, 150);
-  delay(170);
-  noTone(BUZZER);
+float PI(float Kp, float Ki, float dt, float measured){
+    static float P = 0;
+    static float I = 0;
+    float error = 0 - measured;
+    P = error * Kp;
+    I += error * dt * Ki;
+    return P + I;
 }
 
-void setup() {
-  pinMode(LED_R, OUTPUT);
-  pinMode(LED_G, OUTPUT);
-  pinMode(LED_B, OUTPUT);
-  pinMode(BUZZER, OUTPUT);
-  pinMode(PY1, OUTPUT);
-  pinMode(PY2, OUTPUT);
-
-  startupTone();
-
-  digitalWrite(LED_R, HIGH);
-  digitalWrite(LED_G, LOW);
-  digitalWrite(LED_B, HIGH);
-  digitalWrite(PY1, LOW);
-  digitalWrite(PY2, LOW);
-
-  if (!SD.begin(SD_CS)){
-    digitalWrite(LED_G, HIGH);
-    digitalWrite(LED_R, LOW);
-    tone(BUZZER, 440, 500);
-  }
-  digitalWrite(LED_G, LOW);
-  if (!baro.begin()){
-    digitalWrite(LED_G, HIGH);
-    digitalWrite(LED_R, LOW);
-    tone(BUZZER, 440, 500);
-  }
-  digtalWrite(LED_G, LOW);
-  digtalWrite(LED_B, LOW);
-  galt = baro.readAltitude();
-
-  xServo.attach(xPin);
-  yServo.attach(yPin);
-
+void setup(){
+    Serial.begin(9600);
+    if(!mpu.begin()){
+        Serial.println("Gyro init failed");
+    }
+    Serial.println("Gyro init success");
+    if(!baro.begin()){
+        Serial.println("Baro init init");
+    }
+    Serial.println("Baro init success");
+    lastMicros = micros();
+    yServo.attach(yServoPin);
+    xServo.attach(xServoPin);
 }
 
-void loop() {
-  File flightData = SD.open("flightData.txt", FILE_WRITE);
-  nalt = baro.readAltitude();
-  zalt = nalt - galt;
-  flightData.println(zalt);
-  x = a.acceleration.x;
-  y = a.acceleration.y;
-  xServo.write(x);
-  yServo.write(y);
-  flightData.print("X accel: ");
-  flightData.println(x);
-  flightData.print("Y accel: ");
-  flightData.println(y);
+void loop(){
+    sensors_event_t a, g, temp;
+    mpu.getEvent(&a, &g, &temp);
+    unsigned long now = micros();
+    dt = (now - lastMicros)/1e6;
+    x += g.gyro.x * dt;
+    y += g.gyro.y * dt;
+    xTune = PI(0.4, 0.2, dt, x);
+    xServo.write(xTune * 57.2958);
+    yTune = PI(0.4, 0.2, dt, y);
+    yServo.write(yTune * 57.2958);
+    lastMicros = now;
+    delay(2);
 }
