@@ -1,6 +1,10 @@
 # HANKware
 Code for the MOSES flight computer <br>
-TVC_code.ino is NOT completed and is in progress.
+Examples for calculations in the Arduino language<br>
+* Velocity
+* PI Controller
+* Apogee detection
+
 
 
 # Thrust Vector Control (TVC) Project Disclaimer
